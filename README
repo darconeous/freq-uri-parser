@@ -1,0 +1,92 @@
+Radio Frequency URI Scheme Parser v0.01
+=======================================
+
+This package contains the canonical URI parser for the `x-freq:`
+URI scheme. This scheme is documented here:
+
+ * <http://www.deepdarc.com/2011/09/30/x-freq-uri/>
+
+This code was written by Robert Quattlebaum in 2011.  The source
+code to this program is public domain.
+
+WHY
+===
+
+The incentive for using this code instead of rolling your own
+`x-freq` URI parser is that implementing a correct URI parser is a
+deceivingly difficult task. I wrote this because I didn't want
+everyone that wanted to use the `x-freq` URI in their programs to
+end up writing their own slightly broken parsers. People invariably
+tend to not read specs for this sort of thing and just go on their
+gut.  I'd like to avoid that by providing this canonical implementation
+to the public domain. You are free to use and abuse this source
+code to your heart's content, with or without attribution.
+
+To put it bluntly, this code is far more likely to be correct than
+what you would likely write in a short period of time. If you want
+to use `x-freq` in your C program, at least use this code as a starting
+point.
+
+And if you happen to find problems, bugs, or want to suggest
+improvements, check out the project page on Github:
+
+ * <https://github.com/darconeous/freq-uri-parser>
+
+How To Use It
+=============
+
+The most important function is `freq_parse_uri()`. It takes
+c-string+length input arguments (which describe the URI) and two
+output arguments which are pointers to `freq_t` structs. Here is
+the prototype:
+
+	extern int freq_parse_uri(
+		const char* uri,
+		size_t len,
+		freq_t* rx_freq,
+		freq_t* tx_freq
+	);
+
+The `freq_t` struct contains the information parsed out of the URI.
+There are two of them to account for URIs which describe different
+receive (RX) and transmit (TX) parameters.
+
+The `freq_t` struct looks like this:
+
+	typedef struct {
+		uint32_t freq;          //!^ in Hertz
+		freq_mod_t mod;
+		uint32_t bandwidth[2];  //!^ For AM and SB only
+		uint16_t deviation;     //!^ For FM only
+		uint16_t ctcss;         //!^ in 1/10ths of a Hertz
+		uint16_t dcs;
+		uint32_t power;         //!^ in milliwatts
+	} freq_t;
+
+As you can see it is fairly straight-forward. The bandwidth parameter
+is split into two parts for the bandwidth below (index zero) and
+above (index one) the carrier frequency.
+
+The modulation (mod) parameter is an enum with the following
+definition:
+
+	typedef enum {
+		FREQ_MOD_UNDEFINED=0,
+		FREQ_MOD_UNKNOWN=1,
+		FREQ_MOD_AM=2,
+		FREQ_MOD_FM=3,
+		FREQ_MOD_SB=4,
+		FREQ_MOD_CW=5,
+	} freq_mod_t;
+
+Adding Support for New Query Parameters
+=======================================
+
+Adding support for new query parameters is very easy. First,
+update `freq_t` to contain the new parameter you want to support.
+Then edit the `parse_query_param()` function in `freq-uri.c` to
+include support for parsing the new parameter. You don't have to
+worry about splitting for RX/TX or worry about percent-decoding
+anything, that is all handled for you automatically.
+
+
