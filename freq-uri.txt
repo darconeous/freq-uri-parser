@@ -1,0 +1,275 @@
+This is the text of the original blog post describing the x-freq URI
+scheme. The original blog post can be found here:
+
+ * <http://www.deepdarc.com/2011/09/30/x-freq-uri/>
+
+-----
+
+Over the past few weeks, I've been thinking that it would be useful
+to have a URI format for describing a radio frequency or channel.
+Such a URI scheme would be useful for hyperlinking to a specific
+frequency from a link and for exchanging radio frequency lists
+between devices, programs, and people. (Think QR-codes)
+
+I looked around to see if such a URI scheme had been developed, but
+I couldn't find anything. Since I think such a scheme would be
+useful, and I would like to use such a scheme in the future, I
+decided to go ahead and throw together an informal proposal for
+what such a scheme would look like and how it would work.
+
+For now the scheme identifier is "`x-freq`" because it is experimental
+at this point. If this scheme is ever formalized into a real standard
+then the "`x-`" prefix would be dropped.
+
+Here are the use cases that I would like to be able to specify this
+this URI scheme, along with some examples:
+
+ * A specific single frequency.
+   Ex: <x-freq:107.9m>
+ * A frequency with a repeater input shift.
+   Ex: <x-freq:145.23m-0.6>
+ * Split receive and transmit frequencies.
+   Ex: <x-freq:145.93m/435.75>
+ * Modulation type and other parameters.
+   Ex: <x-freq:145.23m-0.6?m=fm;dv=5;ts=100>
+
+## Augmented BNF ##
+
+[ABNF](http://www.ietf.org/rfc/rfc2234.txt) is a formal language
+for describing syntax. Here is the ABNF for the x-freq URI scheme:
+
+	frequri	= 'x-freq:' freqcomp [ '?' querycomp ]
+	freqcomp	= freq [ shift / split ]
+	freq	= float [ unit ]
+	shift	= ( "+" / "-" ) freq
+	split	= "/" freq
+	float   = 1*DIGIT / ( *DIGIT "." 1*DIGIT )
+	unit	= 'h' / 'k' / 'm' / 'g' / 't'
+	querycomp	= pair *( ";" pair )
+	pair	= key "=" value
+	key		= keyfirst *( keychar )	
+	keyfirst = ( ALPHA / '_' / ':' )
+	keychar	= ( keyfirst / DIGIT / '-' / '.' )
+	value	= *( unreserved / pct-encoded ) [ '/' *( unreserved / pct-encoded ) ]
+
+The *primary frequency* of a URI is the first frequency in the URL
+and represents the RX frequency. If no 'shift' or 'split' is
+specified, the primary frequency is both the RX and TX frequency(if
+applicable).
+
+If the TX frequency is different than the primary frequency, it may
+be represented relative to the primary frequency (shift) or explicitly
+specified as a full frequency (split). For example, both of the
+following URI's represent the same thing:
+
+ * <x-freq:145.23m-0.6> (Shift notation)
+ * <x-freq:145.23m/144.63> (Split notation)
+
+Shift notation is useful for specifying repeaters which use separate
+input and output frequencies. Split notation is useful when the RX
+and TX frequencies are on entirely different bands—which is common
+for satellite communications:
+
+ * <x-freq:145.93m/435.75>
+
+The default unit for the primary frequency (when unspecified) is
+kilohertz. The default unit for any other frequency in the URI
+matches the unit of the primary frequency unless specified otherwise.
+The unit of a frequency can be specified by appending a unit code
+suffix. The units are:
+
+ * `h` — Hertz
+ * `k` — Kilohertz
+ * `m` — Megahertz
+ * `g` — Gigahertz
+ * `t` — Terrahertz
+
+## Query Component ##
+
+The query component of the URI is used to specify additional
+parameters about the channel, such as modulation, bandwidth, CTCSS
+tones, etc. Here are the query parameters specified so far:
+
+ * "`m`" : Modulation
+ * "`bw`" : Channel spectrum bandwidth for `am` and `sb` modulation.
+ * "`dv`" : Carrier frequency deviation for `fm` modulation.
+ * "`ts`" : CTCSS/PL Tone (In Hz)
+ * "`dcs`" : Digital Code Squelch
+ * "`std`" : Modulation scheme (ex: NTSC, PAL, ...)
+ * "`tp`" : Transmit Power (in watts)
+
+Most query parameters do not have any pre-defined default values.
+If the parameter is absent from the URI, then the default value of
+the parameter is implementation-specific.
+
+Any query parameters which are unrecognized by an application should
+be ignored.
+
+### Split parameters ###
+
+Section added 2011-10-27.
+
+Sometimes you may need different values for the parameters for TX
+and RX. In those cases, you can explicitly specify separate TX or
+RX values by separating them with a '/' character. Just like split
+notation, the RX value is first, and the TX value is second. Keep
+in mind that for some parameters (like transmit power) this makes
+no sense.
+
+### `m` - Modulation ###
+
+Currently, this query component can be one of the following values:
+
+ * `am` : Dual-Side-Band w/ Carrier.
+ * `fm` : Frequency Modulation
+ * `sb` : Side-Band(s) w/ Suppressed Carrier (Includes USB/LSB/DSB)
+ * `cw` : Constant-Wave (For morse-code, on-off keying, etc)
+
+### `bw` - Spectrum Bandwidth ###
+
+Describes the total spectrum bandwidth used, centered on the primary
+frequency. Note that this parameter is only used for `am` and `sb`
+modulations. For `fm` modulation, you use `dv` (deviation).
+
+In some cases, such as SSB and VSB modulation, the bandwidth is not
+symmetric on either side of the carrier. In these cases you can
+specify the bandwidth used below and above the carrier, separated
+with a "`:`" character. This allows us to specify a rich set of
+modulations (Like USB, LSB, VSB, DSBSC, etc.) with only two query
+components:
+
+ * `?m=sb;bw=4:` &nbsp; (Lower Side-Band (LSB), 4kHz)
+ * `?m=sb;bw=:4` &nbsp; (Upper Side-Band (USB), 4kHz)
+ * `?m=sb;bw=2:4` &nbsp; (Vestigial Side-Band w/ Suppressed Carrier)
+ * `?m=am;bw=1.5m:4.5` &nbsp; (Vestigial Side-Band w/ Carrier)
+
+Note that `bw=30` and `bw=15:15` mean the same thing.
+
+You can specify fun things like inverting linear transponders using
+this notation. For example, ARRISAT-1 has a 16kHz inverting linear
+transponder. It could be described with the following x-freq URI:
+
+ * <x-freq:145.9220m/435.7580?bw=:16/16:>
+
+### `dv` - Carrier frequency deviation ###
+
+Describes the maximum deviation from the carrier when using frequency
+modulation.
+
+### `ubw`/`lbw` - Upper/Lower Spectrum Bandwidth ###
+
+The `ubw` and `lbw` parameters have been merged into the `bw`
+parameter above.
+
+These parameters allow you to specify the bandwidth more specifically
+than you can with the `bw` parameter, by allowing you to specify
+the bandwidth used above and below the carrier. If only one is
+specified, the other parameter is assumed to be zero.
+
+For FM, the primary frequency represents the *nominal center
+frequency* of the carrier, whereas with AM and SB modulations the
+primary frequency describes *where the carrier actually is* (or
+where it would be, if suppressed). This distinction is important
+because with AM and SB *the carrier isn't always at the center of
+the used bandwidth*. Sometimes the carrier is at the bottom (USB),
+or at the top (LSB), or just off-kilter (VSB). The `ubw` and `lbw`
+parameters allow you to specify how large each sideband is around
+the carrier.
+
+NOTE: These parameters only make sense with AM and SB modulations.
+Use of these parameters with FM and CW modulations is invalid.
+
+If both of these parameters are set to the same value, you can
+shorten the URI by adding the two parameters together and using the
+`bw` parameter.
+
+### `ts` - CTCSS/PL Tone ###
+
+This specifies the "Tone Squelch" baseband frequency in Hertz.
+Commonly used on repeaters. For TX this tone will be added when
+transmitting. For RX, the received signal will be squelched if the
+given CTCSS done is not present ("tone squelch").
+
+### `dcs` - Digital Code Squelch ###
+
+This specifies the code for "Digital Code Squelch". This is the
+digital version of CTCSS. Not as common, but included here for
+completeness sake. Same TX/RX logic applies here as it does to the
+`ts` parameter.
+
+### `std` - Modulating Standard ###
+
+This parameter describes the *modulating standard*. You would use
+this parameter to describe the standard being used for this channel.
+For example, for a TV signal this could be [`ntsc`](wikipedia:NTSC),
+`ntsc-j`,[`pal`](wikipedia:PAL), [`atsc`](wikipedia:ATSC), etc.
+
+It can also be used as a simple way to describe standardized digital
+modes, like [`afsk1200`](wikipedia:Bell_202_modem), `dfsk9600`,
+[`802.15.4`](wikipedia:802.11), [`802.11`](wikipedia:802.11), etc.
+
+When you use this parameter, you generally don't need to use the
+other parameters like `m` or `bw`, as these parameters would be
+implied by the standard being referenced. Any parameter which is
+specified will over-ride any defaults associated with indicated
+modulation standard.
+
+### `tp` - Transmit Power
+
+This parameter may be used to specify the transmit power that should
+be used for transmitting using this URI. It is specified in watts.
+
+## Other Examples
+
+ * "N6NFI/R":   <x-freq:145.23m-0.6?m=fm;dv=5;ts=100>
+ * "APRS raw": <x-freq:144390?m=fm>
+ * "APRS ops": <x-freq:144390?m=fm;ts=100;std=afsk1200:ax.25>
+ * "ARISSat-1,TL": <x-freq:145.93m/435.75?bw=16>
+   (or, more accurately, <x-freq:145.922m/435.758?bw=:16/16:>)
+ * "WWRQ": <x-freq:107.9m?m=fm;dv=75>
+ * NTSC Ch 3: <x-freq:61.25m?std=ntsc>
+   * Video: <x-freq:61.25m?m=am;bw=1.5m:4.5>
+   * Audio: <x-freq:65.75m?m=fm;dv=25>
+
+Here are some real-world examples using the [WB6ECE Repeater
+Group](http://www.wb6ece.org/):
+
+ * Voted, linked input:
+   <x-freq:441.3m+5?m=fm;dv=5;ts=100>
+ * Allison Site Only:
+   <x-freq:441.3m+5?m=fm;dv=5;ts=100/110.9>
+ * Woodside Site Only:
+   <x-freq:441.3m+5?m=fm;dv=5;ts=100/123.0>
+
+### Non-radio examples ###
+
+This URI scheme can also be used to describe baseband signals as
+well:
+
+ * FM Stereo Diff: <x-freq:38?m=sb;bw=30>
+ * RBDS: <x-freq:57?m=sb;bw=1.65>
+ * Old long-distance idle signal: <x-freq:2.6?m=cw> :D
+
+## A few important points ##
+
+One of the things you may notice is missing from this URI scheme
+is the leading double-slash (`//`). In URLs these characters denote
+the *authority component* of the URL, which contains information
+like the hostname, username, IP port, etc. Since none of that is
+relevant to this URI scheme, I have omitted it.
+
+Most importantly, the following usage is an *abomination* and should
+*never* be used:
+
+ * x-freq://145.23m-0.6                      (DON'T DO THIS!)
+
+Also note that the character to separate the query component
+parameters is ';' instead of '&'. This allows the scheme to be used
+in XML and HTML documents without doing any escaping.
+
+## Wrapping-up ##
+
+This URI scheme allows you to specifically describe the fundamental
+parameters of a radio channel: RX frequency, TX frequency, modulation,
+bandwidth, and other parameters. I believe it to be concise, flexible,
+and human-readable.
