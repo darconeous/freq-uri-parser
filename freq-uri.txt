@@ -156,33 +156,6 @@ transponder. It could be described with the following x-freq URI:
 Describes the maximum deviation from the carrier when using frequency
 modulation.
 
-### `ubw`/`lbw` - Upper/Lower Spectrum Bandwidth ###
-
-The `ubw` and `lbw` parameters have been merged into the `bw`
-parameter above.
-
-These parameters allow you to specify the bandwidth more specifically
-than you can with the `bw` parameter, by allowing you to specify
-the bandwidth used above and below the carrier. If only one is
-specified, the other parameter is assumed to be zero.
-
-For FM, the primary frequency represents the *nominal center
-frequency* of the carrier, whereas with AM and SB modulations the
-primary frequency describes *where the carrier actually is* (or
-where it would be, if suppressed). This distinction is important
-because with AM and SB *the carrier isn't always at the center of
-the used bandwidth*. Sometimes the carrier is at the bottom (USB),
-or at the top (LSB), or just off-kilter (VSB). The `ubw` and `lbw`
-parameters allow you to specify how large each sideband is around
-the carrier.
-
-NOTE: These parameters only make sense with AM and SB modulations.
-Use of these parameters with FM and CW modulations is invalid.
-
-If both of these parameters are set to the same value, you can
-shorten the URI by adding the two parameters together and using the
-`bw` parameter.
-
 ### `ts` - CTCSS/PL Tone ###
 
 This specifies the "Tone Squelch" baseband frequency in Hertz.
