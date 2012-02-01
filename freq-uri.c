@@ -63,7 +63,7 @@ unitmultiplier(char unit) {
 		case 'm': fmult=1000000.0;  break;
 		case 'g': fmult=1000000000.0;  break;
 		case 't': fmult=1000000000000.0;  break;
-		default: printf("Bad mult char: [%c] (%d)\n",unit,unit); break;
+		default: assert_printf("Bad mult char: [%c] (%d)\n",unit,unit); break;
 	}
 	return fmult;
 }
@@ -88,6 +88,11 @@ strtofreq(const char * nptr, char ** endptr, char* multchar) {
 			if(multchar)
 				*multchar = tolower(ep[0]);
 			ep++;
+
+			// Skip optional 'hz' suffix if present.
+			if( ('h'==tolower(ep[0]))
+			 && ('z'==tolower(ep[1]))
+			)	ep += 2;
 		}
 	}
 
@@ -99,6 +104,12 @@ strtofreq(const char * nptr, char ** endptr, char* multchar) {
 
 static void
 parse_query_param(freq_t* freq,const char* key,const char* value) {
+
+	assert(freq!=NULL);
+
+	require(value!=NULL,bail);
+	require(key!=NULL,bail);
+
 	if(0==strcmp(key,"m")) {
 		// Parse Modulation.
 		if(0==strcmp(value,"am")) {
@@ -155,14 +166,21 @@ parse_query_param(freq_t* freq,const char* key,const char* value) {
 		// Ignore unknown query keys.
 
 	}
+bail:
+	return;
 }
 
 static void
 split_and_decode(char* value, char** value_rx, char** value_tx) {
 	int i;
 
+	assert(value_rx!=NULL);
+	assert(value_tx!=NULL);
+
 	*value_rx = value;
 	*value_tx = value;
+
+	require(value!=NULL,bail);
 
 	for(i=0;value[i];i++) {
 		if(value[i]=='/') {
@@ -175,6 +193,9 @@ split_and_decode(char* value, char** value_rx, char** value_tx) {
 		}
 	}
 	url_decode_cstr_inplace(*value_rx);
+
+bail:
+	return;
 }
 
 int

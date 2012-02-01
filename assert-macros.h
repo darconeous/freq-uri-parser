@@ -29,6 +29,12 @@
 **	 * <http://creativecommons.org/publicdomain/zero/1.0/>
 **
 **	See <http://www.deepdarc.com/> for other cool stuff.
+**
+**	-------------------------------------------------------------------
+**
+**	See <http://www.mactech.com/articles/develop/issue_11/Parent_final.html>
+**	for an explanation about how to use these macros and justification
+**	for using this pattern in general.
 */
 
 #ifndef __DARC_ASSERT_MACROS__
@@ -46,6 +52,7 @@
 #include <stdio.h>
 #include <assert.h>
 #if !DEBUG
+ #define assert_printf(fmt, ...) do { } while(0)
  #define check_string(c, s)   do { } while(0)
  #define require_action_string(c, l, a, s) \
     do { if(!(c)) { \
@@ -54,36 +61,27 @@
 	} while(0)
 #else
  #if __AVR__
-  #define check_string(c, s) \
-    do { if(!(c)) fprintf_P(assert_error_stream, \
-				PSTR(__FILE__ ":%d: Check Failed (%s)\n"), \
+  #define assert_printf(fmt, ...) \
+    fprintf_P(assert_error_stream, \
+				PSTR(__FILE__ ":%d: "fmt"\n"), \
 				__LINE__, \
-				s); } while(0)
-  #define require_action_string(c, l, a, s) \
-    do { if(!(c)) { \
-			 fprintf_P( \
-				assert_error_stream, \
-				PSTR(__FILE__ ":%d: Assert Failed (%s)\n"), \
-				__LINE__, \
-				s); a; goto l; \
-		 } \
-	} while(0)
+				__VA_ARGS__)
  #else
-  #define check_string(c, s) \
-    do { if(!(c)) fprintf(assert_error_stream, \
-				__FILE__ ":%d: Check Failed (%s)\n", \
+  #define assert_printf(fmt, ...) \
+    fprintf(assert_error_stream, \
+				__FILE__ ":%d: "fmt"\n", \
 				__LINE__, \
-				s); } while(0)
-  #define require_action_string(c, l, a, s) \
-    do { if(!(c)) { \
-			 fprintf( \
-				assert_error_stream, \
-				__FILE__ ":%d: Assert Failed (%s)\n", \
-				__LINE__, \
-				s); a; goto l; \
+				__VA_ARGS__)
+ #endif
+ #define check_string(c, s) \
+   do { if(!(c)) assert_printf("Check Failed (%s)", \
+			s); } while(0)
+ #define require_action_string(c, l, a, s) \
+	do { if(!(c)) { \
+		assert_printf("Requirement Failed (%s)", \
+			s); a; goto l; \
 		 } \
 	} while(0)
- #endif
 #endif
 
  #define check(c)   check_string(c, # c)

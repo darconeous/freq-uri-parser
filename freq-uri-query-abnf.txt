@@ -1,0 +1,38 @@
+; Used primarily for fuzzing, but may also be useful to
+; people who want to see exactly how the proposed query
+; components are described.
+
+frequri     = 'x-freq:' freqcomp [ '?' querycomp ]
+freqcomp    = freq [ shift / tx-freq ]
+freq        = float [ unit ]
+shift       = ( "+" / "-" ) freq
+tx-freq     = "/" freq
+float       = 1*DIGIT [ "." *DIGIT ] / "." 1*DIGIT
+unit        = 'h' ['z'] / 'k' ['hz'] / 'm' ['hz'] / 'g' ['hz'] / 't' ['hz']
+querycomp	= pair *( ";" pair )
+;pair        = key "=" value
+;key         = keyfirst *( keychar )
+;keyfirst    = ( ALPHA / '_' / ':' )
+;keychar     = ( keyfirst / DIGIT / '-' / '.' )
+value       = *( unreserved / pct-encoded ) [ '/' *( unreserved / pct-encoded ) ]
+pair        = m-pair / bw-pair / dv-pair / ts-pair / dcs-pair / std-pair / tp-pair
+m-value     = ( 'am' / 'fm' / 'sb' / 'cw' )
+m-pair      = 'm=' m-value [ '/' m-value ]
+bw-value    = freq [ ':' freq ]
+bw-pair		= 'bw=' bw-value [ '/' bw-value ]
+dv-pair     = 'dv=' freq [ '/' freq ]
+ts-pair     = 'ts=' float [ '/' float ]
+dcs-pair    = 'dcs=' 1*DIGIT [ '/' 1*DIGIT ]
+std-pair    = 'std=' value
+tp-pair     = 'tp=' float [ '/' float ]
+
+
+; The following rules come from the related URI RFC.
+
+reserved    = gen-delims / sub-delims
+gen-delims  = ":" / "/" / "?" / "#" / "[" / "]" / "@"
+sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~"
+pct-encoded = "%" HEXDIG HEXDIG
+;pchar      = unreserved / pct-encoded / sub-delims / ":" / "@"
+;fragment   = *( pchar / "/" / "?" )

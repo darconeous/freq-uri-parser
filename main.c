@@ -35,8 +35,8 @@
 
 void
 parse_and_print(const char* uri) {
-	freq_t rx_freq = {};
-	freq_t tx_freq = {};
+	freq_t rx_freq = { 0 };
+	freq_t tx_freq = { 0 };
 
 	freq_parse_uri(uri,0,&rx_freq,&tx_freq);
 

@@ -1,0 +1,23 @@
+frequri     = 'x-freq:' freqcomp [ '?' querycomp ]
+freqcomp    = freq [ shift / tx-freq ]
+freq        = float [ unit ]
+shift       = ( "+" / "-" ) freq
+tx-freq     = "/" freq
+float       = 1*DIGIT [ "." *DIGIT ] / "." 1*DIGIT
+unit        = 'h' ['z'] / 'k' ['hz'] / 'm' ['hz'] / 'g' ['hz'] / 't' ['hz']
+querycomp	= pair *( ";" pair )
+pair        = key "=" value
+key         = keyfirst *( keychar )
+keyfirst    = ( ALPHA / '_' / ':' )
+keychar     = ( keyfirst / DIGIT / '-' / '.' )
+value       = *( unreserved / pct-encoded ) [ '/' *( unreserved / pct-encoded ) ]
+
+; The following rules come from the related URI RFC.
+
+reserved    = gen-delims / sub-delims
+gen-delims  = ":" / "/" / "?" / "#" / "[" / "]" / "@"
+sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~"
+pct-encoded = "%" HEXDIG HEXDIG
+;pchar      = unreserved / pct-encoded / sub-delims / ":" / "@"
+;fragment   = *( pchar / "/" / "?" )

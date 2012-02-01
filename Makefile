@@ -26,6 +26,8 @@
 #  * <http://creativecommons.org/publicdomain/zero/1.0/>
 #
 
+CFLAGS:=-g -O0 -DDEBUG=1
+
 freq-parser: main.o freq-uri.o url-helpers.o
 	$(CC) -o $@ $^
 
@@ -39,6 +41,9 @@ test: freq-parser
 	@./freq-parser 'x-freq:61.25m?m=am;bw=1.5m:4.5'
 	@./freq-parser 'x-freq:2.6?m=cw'
 	@./freq-parser 'x-freq:441.3m+5?m=fm;dv=2.5;ts=100/123.0'
+
+fuzz: freq-parser
+	./fuzz.sh
 
 main.o: main.c freq-uri.h
 url-helpers.o: url-helpers.c url-helpers.h assert-macros.h
