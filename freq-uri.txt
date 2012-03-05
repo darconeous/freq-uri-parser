@@ -192,6 +192,10 @@ modulation standard.
 This parameter may be used to specify the transmit power that should
 be used for transmitting using this URI. It is specified in watts.
 
+### `cs` - Call Sign
+
+This parameter associates a call sign with the URI.
+
 ## Other Examples
 
  * "N6NFI/R":   <x-freq:145.23m-0.6?m=fm;dv=5;ts=100>
