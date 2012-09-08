@@ -113,15 +113,15 @@ parse_query_param(freq_t* freq,const char* key,const char* value) {
 	if(0==strcmp(key,"m")) {
 		// Parse Modulation.
 		if(0==strcmp(value,"am")) {
-			freq->mod = FREQ_MOD_AM;
+			freq->m = FREQ_MOD_AM;
 		} else if(0==strcmp(value,"sb")) {
-			freq->mod = FREQ_MOD_SB;
+			freq->m = FREQ_MOD_SB;
 		} else if(0==strcmp(value,"fm")) {
-			freq->mod = FREQ_MOD_FM;
+			freq->m = FREQ_MOD_FM;
 		} else if(0==strcmp(value,"cw")) {
-			freq->mod = FREQ_MOD_CW;
+			freq->m = FREQ_MOD_CW;
 		} else {
-			freq->mod = FREQ_MOD_UNKNOWN;
+			freq->m = FREQ_MOD_UNKNOWN;
 		}
 
 	} else if(0==strcmp(key,"bw")) {
@@ -133,27 +133,27 @@ parse_query_param(freq_t* freq,const char* key,const char* value) {
 			if(value[i]==':') {
 				char multchar = 'k';
 				// Zero-terminate at the seperator.
-				freq->bandwidth[0] = strtofreq(value,NULL,&multchar);
-				freq->bandwidth[1] = strtofreq(value+i+1,NULL,&multchar);
+				freq->bw[0] = strtofreq(value,NULL,&multchar);
+				freq->bw[1] = strtofreq(value+i+1,NULL,&multchar);
 				return;
 			}
 		}
 
 		// No split.
-		freq->bandwidth[0] =
-		freq->bandwidth[1] = strtofreq(value,NULL,NULL)/2;
+		freq->bw[0] =
+		freq->bw[1] = strtofreq(value,NULL,NULL)/2;
 
 	} else if(0==strcmp(key,"dv")) {
 		// Parse Deviation.
-		freq->deviation = strtofreq(value,NULL,NULL);
+		freq->dv = strtofreq(value,NULL,NULL);
 
 	} else if(0==strcmp(key,"tp")) {
 		// Parse Transmit Power.
-		freq->power = (uint32_t)(strtof(value,NULL)*1000.0f+0.5f);
+		freq->tp = (uint32_t)(strtof(value,NULL)*1000.0f+0.5f);
 
 	} else if(0==strcmp(key,"ts")) {
 		// Parse the CTCSS tone frequency.
-		freq->ctcss = (uint16_t)(strtof(value,NULL)*10.0f+0.5f);
+		freq->ts = (uint16_t)(strtof(value,NULL)*10.0f+0.5f);
 
 	} else if(0==strcmp(key,"dcs")) {
 		// Parse the DCS code.
@@ -255,24 +255,24 @@ freq_parse_uri(
 		ret=FREQ_STATUS_BAD_FORMAT,"bad frequency");
 
 	if(freq_rx)
-		freq_rx->freq = freq;
+		freq_rx->f = freq;
 
 	if(freq_tx)
-		freq_tx->freq = freq;
+		freq_tx->f = freq;
 
 	// Parse the split transmit frequency, if present.
 	if(freq_tx) switch(path[0]) {
 		case '+':
 			path++;
-			freq_tx->freq += strtofreq(path,&path,&multchar);
+			freq_tx->f += strtofreq(path,&path,&multchar);
 			break;
 		case '-':
 			path++;
-			freq_tx->freq -= strtofreq(path,&path,&multchar);
+			freq_tx->f -= strtofreq(path,&path,&multchar);
 			break;
 		case '/':
 			path++;
-			freq_tx->freq = strtofreq(path,&path,&multchar);
+			freq_tx->f = strtofreq(path,&path,&multchar);
 			break;
 		default:
 			break;
@@ -309,10 +309,10 @@ freq_dump(FILE* file, const freq_t* freq, const char* lineprefix) {
 	if(!lineprefix)
 		lineprefix = "";
 
-	fprintf(file,"%sfreq = %u Hz\n",lineprefix,freq->freq);
-	if(freq->mod) {
+	fprintf(file,"%sfreq = %u Hz\n",lineprefix,freq->f);
+	if(freq->m) {
 		fprintf(file,"%smod = ",lineprefix);
-		switch(freq->mod) {
+		switch(freq->m) {
 			case FREQ_MOD_AM:
 				fprintf(file,"AM\n");
 				break;
@@ -331,21 +331,21 @@ freq_dump(FILE* file, const freq_t* freq, const char* lineprefix) {
 				break;
 		}
 	}
-	if(freq->deviation)
+	if(freq->dv)
 		fprintf(file,"%sdeviation = (+/-)%u Hz\n",
-			lineprefix,freq->deviation);
-	if(freq->bandwidth[0] || freq->bandwidth[1]) {
+			lineprefix,freq->dv);
+	if(freq->bw[0] || freq->bw[1]) {
 		fprintf(file,"%sbandwidth = ",lineprefix);
-		if(freq->bandwidth[0]==freq->bandwidth[1])
-			fprintf(file,"%u Hz\n",freq->bandwidth[0]+freq->bandwidth[1]);
+		if(freq->bw[0]==freq->bw[1])
+			fprintf(file,"%u Hz\n",freq->bw[0]+freq->bw[1]);
 		else
-			fprintf(file,"%u:%u Hz\n",freq->bandwidth[0],
-				freq->bandwidth[1]);
+			fprintf(file,"%u:%u Hz\n",freq->bw[0],
+				freq->bw[1]);
 	}
-	if(freq->ctcss)
-		fprintf(file,"%sctcss = %.01f Hz\n",lineprefix,freq->ctcss*0.1);
+	if(freq->ts)
+		fprintf(file,"%sctcss = %.01f Hz\n",lineprefix,freq->ts*0.1);
 	if(freq->dcs)
 		fprintf(file,"%sdcs = %03u\n",lineprefix,freq->dcs);
-	if(freq->power)
-		fprintf(file,"%spower = %u mW\n",lineprefix,freq->power);
+	if(freq->tp)
+		fprintf(file,"%spower = %u mW\n",lineprefix,freq->tp);
 }
