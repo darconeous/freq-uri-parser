@@ -1,6 +1,8 @@
 /*	@file url-helpers.c
 **	@author Robert Quattlebaum <darco@deepdarc.com>
 **
+**	Originally published 2010-8-31.
+**
 **	This file was written by Robert Quattlebaum <darco@deepdarc.com>.
 **
 **	This work is provided as-is. Unless otherwise provided in writing,
@@ -35,20 +37,24 @@
 #include "assert-macros.h"
 #include "url-helpers.h"
 
+#ifdef __SDCC
+#include <malloc.h>
+#endif
+
 static bool
-isurlchar(int src_char) {
+isurlchar(char src_char) {
 	return isalnum(src_char)
-	       || (src_char == '$')
-	       || (src_char == '-')
-	       || (src_char == '_')
-	       || (src_char == '.')
-	       || (src_char == '+')
-	       || (src_char == '!')
-	       || (src_char == '*')
-	       || (src_char == '\'')
-	       || (src_char == '(')
-	       || (src_char == ')')
-	       || (src_char == ',');
+	   || (src_char == '$')
+	   || (src_char == '-')
+	   || (src_char == '_')
+	   || (src_char == '.')
+	   || (src_char == '+')
+	   || (src_char == '!')
+	   || (src_char == '*')
+	   || (src_char == '\'')
+	   || (src_char == '(')
+	   || (src_char == ')')
+	   || (src_char == ',');
 }
 
 #if __AVR__
@@ -70,14 +76,15 @@ url_encode_cstr(
 ) {
 	size_t ret = 0;
 
-	max_size--;
+	if(!max_size--)
+		return 0;
 
 	while(true) {
 		const char src_char = *src++;
-		if(!src_char)
+		if(src_char==0)
 			break;
 
-		if(!max_size) {
+		if(max_size==0) {
 			ret++;
 			break;
 		}
@@ -88,6 +95,8 @@ url_encode_cstr(
 			max_size--;
 		} else if(src_char == ' ') {
 			*dest++ = '+';  // Stupid legacy space encoding.
+			ret++;
+			max_size--;
 		} else {
 			if(max_size < 3) {
 				// Too small for the next character.
@@ -110,42 +119,28 @@ url_encode_cstr(
 
 static char
 hex_digit_to_int(char c) {
-	switch(c) {
-	case '0': return 0; break;
-	case '1': return 1; break;
-	case '2': return 2; break;
-	case '3': return 3; break;
-	case '4': return 4; break;
-	case '5': return 5; break;
-	case '6': return 6; break;
-	case '7': return 7; break;
-	case '8': return 8; break;
-	case '9': return 9; break;
-	case 'A':
-	case 'a': return 10; break;
-	case 'B':
-	case 'b': return 11; break;
-	case 'C':
-	case 'c': return 12; break;
-	case 'D':
-	case 'd': return 13; break;
-	case 'E':
-	case 'e': return 14; break;
-	case 'F':
-	case 'f': return 15; break;
-	}
+	if(c>='0' && c<='9')
+		return c-'0';
+	if(c>='A' && c<='F')
+		return 10+c-'A';
+	if(c>='a' && c<='f')
+		return 10+c-'a';
 	return 0;
 }
 
 size_t
-url_decode_cstr(
-	char *dest, const char*src, size_t max_size
+url_decode_str(
+	char *dest,
+	size_t max_size,
+	const char* src,		// Length determined by src_len.
+	size_t src_len
 ) {
 	size_t ret = 0;
 
-	max_size--;
+	if(!max_size--)
+		return 0;
 
-	while(true) {
+	while(src_len--) {
 		const char src_char = *src++;
 		if(!src_char)
 			break;
@@ -155,10 +150,15 @@ url_decode_cstr(
 			break;
 		}
 
-		if((src_char == '%') && src[0] && src[1]) {
-			*dest++ = (hex_digit_to_int(src[0]) << 4)
-				+ hex_digit_to_int(src[1]);
+		if((src_char == '%')
+			&& (src_len>=2)
+			&& src[0]
+			&& src[1]
+		) {
+			*dest++ = (hex_digit_to_int(src[0]) << 4) + hex_digit_to_int(
+				src[1]);
 			src += 2;
+			src_len -= 2;
 		} else if(src_char == '+') {
 			*dest++ = ' ';  // Stupid legacy space encoding.
 		} else {
@@ -174,9 +174,59 @@ url_decode_cstr(
 	return ret;
 }
 
+size_t
+url_decode_cstr(
+	char *dest,
+	const char*src,
+	size_t max_size
+) {
+	size_t ret = 0;
+#if DEBUG
+	char*const dest_check = dest;
+#endif
+
+	if(!max_size--)
+		goto bail;
+
+	while(true) {
+		const char src_char = *src++;
+		if(!src_char) {
+			break;
+		}
+
+		if(!max_size) {
+			ret++;
+			break;
+		}
+
+		if((src_char == '%')
+			&& src[0]
+			&& src[1]
+		) {
+			*dest++ = (hex_digit_to_int(src[0]) << 4) + hex_digit_to_int(
+				src[1]);
+			src += 2;
+		} else if(src_char == '+') {
+			*dest++ = ' ';  // Stupid legacy space encoding.
+		} else {
+			*dest++ = src_char;
+		}
+
+		ret++;
+		max_size--;
+	}
+
+bail:
+	*dest = 0;
+#if DEBUG
+	assert(strlen(dest_check)==ret);
+#endif
+	return ret;
+}
+
 void
 url_decode_cstr_inplace(char *str) {
-	url_decode_cstr(str, str, 0);
+	url_decode_cstr(str, str, -1);
 }
 
 size_t
@@ -185,10 +235,10 @@ url_form_next_value(
 ) {
 	size_t bytes_parsed = 0;
 	char c = **form_string;
+	char* v = NULL;
 
 	if(!c) {
 		*key = NULL;
-		*value = NULL;
 		goto bail;
 	}
 
@@ -197,10 +247,8 @@ url_form_next_value(
 	while(true) {
 		c = **form_string;
 
-		if(!c) {
-			*value = NULL;
+		if(!c)
 			goto bail;
-		}
 
 		if(c == '=')
 			break;
@@ -209,19 +257,21 @@ url_form_next_value(
 
 		if((c == ';') || (c == '&')) {
 			*(*form_string)++ = 0;
-			    (*form_string)++;
-			*value = NULL;
 			goto bail;
 		}
 
-		    (*form_string)++;
+		(*form_string)++;
 	}
 
 	// Zero terminate the key.
-	*(*form_string)++ = 0;
+	if(value)
+		**form_string = 0;
+
+	(*form_string)++;
+
 	bytes_parsed++;
 
-	*value = *form_string;
+	v = *form_string;
 
 	while(true) {
 		c = **form_string;
@@ -230,33 +280,74 @@ url_form_next_value(
 			break;
 
 		bytes_parsed++;
-		    (*form_string)++;
+		(*form_string)++;
 	}
 
 	// Zero terminate the value
-	*(*form_string)++ = 0;
-	bytes_parsed++;
+	if(*form_string[0]) {
+		*(*form_string)++ = 0;
+		bytes_parsed++;
+	}
 
 bail:
-	if(*value && decodeValue)
-		url_decode_cstr_inplace(*value);
+	if(v && decodeValue)
+		url_decode_cstr_inplace(v);
+	if(value)
+		*value = v;
 
 	return bytes_parsed;
 }
 
+size_t
+url_path_next_component(
+	char** path_string, char** component
+) {
+	size_t bytes_parsed = 0;
+	char c = **path_string;
+
+	if(!c) {
+		*component = NULL;
+		goto bail;
+	}
+
+	*component = *path_string;
+
+	while(true) {
+		c = **path_string;
+
+		if(!c || (c == '/'))
+			break;
+
+		bytes_parsed++;
+		(*path_string)++;
+	}
+
+	// Zero terminate the value
+	if(*path_string[0]) {
+		*(*path_string)++ = 0;
+		bytes_parsed++;
+	}
+
+bail:
+	if(*component)
+		url_decode_cstr_inplace(*component);
+
+	return bytes_parsed;
+}
 
 int
 url_parse(
 	char*	uri,
 	char**	protocol,
-	char**	username,
-	char**	password,
+	char**	username,	// Not yet supported: will be skipped if present.
+	char**	password,	// Not yet supported: will be skipped if present.
 	char**	host,
 	char**	port,
 	char**	path,
 	char**	query
 ) {
 	int bytes_parsed = 0;
+	char tmp;
 
 	require_string(uri, bail, "NULL uri parameter");
 
@@ -286,8 +377,14 @@ url_parse(
 
 		addr_begin = uri;
 
-		while((isurlchar(*uri) || (*uri == '[') || (*uri == ']') ||
-		            (*uri == ':') || (*uri == '@')) && (*uri != '/')) {
+		while( (tmp=*uri) != '/'
+			&& ( isurlchar(tmp)
+				|| (tmp == '[')
+				|| (tmp == ']')
+				|| (tmp == ':')
+				|| (tmp == '@')
+			)
+		) {
 			uri++;
 			bytes_parsed++;
 		}
@@ -303,7 +400,7 @@ url_parse(
 		        (addr_end >= addr_begin) && (*addr_end != '@') &&
 		        (*addr_end != '[');
 		    addr_end--) {
-			if((*addr_end == ']')) {
+			if(*addr_end == ']') {
 				*addr_end = 0;
 				got_port = true;
 			} else if(!got_port && (*addr_end == ':')) {
@@ -321,10 +418,18 @@ url_parse(
 		*path = uri;
 
 	// Move to the end of the path.
-	while((isurlchar(*uri) || (*uri == '/') || (*uri == '[') ||
-	            (*uri == ']') || (*uri == ':') || (*uri == '=') ||
-	            (*uri == '&') ||
-	            (*uri == '%')) && (*uri != '#') && (*uri != '?')) {
+	while( ((tmp=*uri) != '#')
+		&& (tmp != '?')
+		&& ( isurlchar(tmp)
+			|| (tmp == '[')
+			|| (tmp == ']')
+			|| (tmp == ':')
+			|| (tmp == '/')
+			|| (tmp == '=')
+			|| (tmp == '&')
+			|| (tmp == '%')
+		)
+	) {
 		uri++;
 		bytes_parsed++;
 	}
@@ -338,10 +443,18 @@ url_parse(
 			*query = uri;
 
 		// Move to the end of the query.
-		while((isurlchar(*uri) || (*uri == '[') || (*uri == ']') ||
-		            (*uri == ':') || (*uri == '/') || (*uri == '=') ||
-		            (*uri == '&') ||
-		            (*uri == ';') || (*uri == '%')) && (*uri != '#')) {
+		while( ((tmp=*uri) != '#')
+			&& ( isurlchar(tmp)
+				|| (tmp == '[')
+				|| (tmp == ']')
+				|| (tmp == ':')
+				|| (tmp == '/')
+				|| (tmp == '=')
+				|| (tmp == '&')
+				|| (tmp == '%')
+				|| (tmp == ';')
+			)
+		) {
 			uri++;
 			bytes_parsed++;
 		}
@@ -355,5 +468,65 @@ url_parse(
 
 bail:
 	return bytes_parsed;
+}
+
+bool
+url_is_absolute(const char* uri) {
+	bool ret = false;
+	int bytes_parsed = 0;
+
+	require(uri, bail);
+
+	while(*uri && isalpha(*uri) && (*uri != ':')) {
+		require(*uri, bail);
+		uri++;
+		bytes_parsed++;
+	}
+
+	if(bytes_parsed && *uri == ':')
+		ret = true;
+
+bail:
+	return ret;
+}
+
+bool
+url_is_root(const char* url) {
+	bool ret = false;
+
+	require(url, bail);
+	require(isalpha(url[0]),bail);
+
+	if(url_is_absolute(url)) {
+		while(*url && isalpha(*url) && (*url != ':')) {
+			require(*url, bail);
+			url++;
+		}
+		if(	(url[0] != ':')
+			|| (url[1] != '/')
+			|| (url[2] != '/')
+		)	goto bail;
+
+		url+=3;
+
+		while(*url && (*url != '/')) {
+			url++;
+		}
+	}
+
+	while(url[0]=='/' && url[1]=='/') url++;
+	ret = (url[0]==0) || ((url[0]=='/') && (url[1]==0));
+
+bail:
+	return ret;
+}
+
+//!< Used to identify IPv6 address strings
+bool
+string_contains_colons(const char* str) {
+	if(!str)
+		return false;
+	for(; (*str != ':') && *str; str++) ;
+	return *str == ':';
 }
 
