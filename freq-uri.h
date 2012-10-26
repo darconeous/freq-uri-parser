@@ -54,13 +54,13 @@ enum {
 };
 
 typedef struct {
-	uint32_t f;			//!^ in Hertz
-	freq_mod_t m;
-	uint32_t bw[2];	//!^ For AM and SB only
-	uint16_t dv;		//!^ For FM only
-	uint16_t ts;			//!^ in 1/10ths of a Hertz
-	uint16_t dcs;
-	uint32_t tp;			//!^ in milliwatts
+	uint32_t f;			//!^ Frequency: in Hertz
+	freq_mod_t m;		//!^ Modulation
+	uint32_t bw[2];		//!^ Bandwidth: For AM and SB only
+	uint16_t dv;		//!^ Deviation: For FM only
+	uint16_t ts;		//!^ CTCSS Tone: in 1/10ths of a Hertz
+	uint16_t dcs;		//!^ DCS Code
+	uint32_t tp;		//!^ Transmit Power: in milliwatts
 } freq_t;
 
 extern int freq_parse_uri(
