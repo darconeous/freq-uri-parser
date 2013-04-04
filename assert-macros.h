@@ -1,6 +1,8 @@
-/*
-**	assert_macros.h
-**	8/31/10
+/*!	@file assert-macros.h
+**	@author Robert Quattlebaum <darco@deepdarc.com>
+**	@brief "Assert" and "Require" macros
+**
+**	Originally published 2010-8-31.
 **
 **	This file was written by Robert Quattlebaum <darco@deepdarc.com>.
 **
@@ -40,18 +42,26 @@
 #ifndef __DARC_ASSERT_MACROS__
 #define __DARC_ASSERT_MACROS__
 
-#if __CONTIKI__
+#if CONTIKI
 #define assert_error_stream     stdout
 #else
 #define assert_error_stream     stderr
 #endif
 
-#if HAS_ASSERTMACROS_H
+#if !DEBUG && !defined(NDEBUG)
+#define NDEBUG 1
+#endif
+
+#if ASSERT_MACROS_USE_SYSLOG
+#include <syslog.h>
+#endif
+
+#if HAVE_ASSERTMACROS_H
  #include <AssertMacros.h>
 #else
 #include <stdio.h>
 #include <assert.h>
-#if !DEBUG
+#if !DEBUG || ASSERT_MACROS_SQUELCH
  #define assert_printf(fmt, ...) do { } while(0)
  #define check_string(c, s)   do { } while(0)
  #define require_action_string(c, l, a, s) \
@@ -67,11 +77,24 @@
 				__LINE__, \
 				__VA_ARGS__)
  #else
-  #define assert_printf(fmt, ...) \
+  #if ASSERT_MACROS_USE_SYSLOG
+   #define assert_printf(fmt, ...) \
+    syslog(7, \
+				__FILE__ ":%d: "fmt"\n", \
+				__LINE__, \
+				__VA_ARGS__)
+  #elif ASSERT_MACROS_USE_VANILLA_PRINTF
+   #define assert_printf(fmt, ...) \
+    printf(__FILE__ ":%d: "fmt"\n", \
+				__LINE__, \
+				__VA_ARGS__)
+  #else
+   #define assert_printf(fmt, ...) \
     fprintf(assert_error_stream, \
 				__FILE__ ":%d: "fmt"\n", \
 				__LINE__, \
 				__VA_ARGS__)
+  #endif
  #endif
  #define check_string(c, s) \
    do { if(!(c)) assert_printf("Check Failed (%s)", \
@@ -85,6 +108,7 @@
 #endif
 
  #define check(c)   check_string(c, # c)
+ #define check_noerr(c)   check((c) == 0)
  #define require_quiet(c, l)   do { if(!(c)) goto l; } while(0)
  #define require(c, l)   require_action_string(c, l, {}, # c)
 
@@ -94,5 +118,14 @@
     require_action_string(c, l, \
 	    do {} while(0), s)
 #endif
+
+#if OVERRIDE_ASSERT_H
+#undef assert
+#undef __assert
+#define assert(e)  \
+    ((void) ((e) ? 0 : __assert (#e, __FILE__, __LINE__)))
+#define __assert(e, file, line) \
+    ((void)assert_printf ("%s:%u: failed assertion `%s'\n", file, line, e), abort())
+#endif // OVERRIDE_ASSERT_H
 
 #endif

@@ -60,13 +60,13 @@ isurlchar(char src_char) {
 #if __AVR__
 #include <avr/pgmspace.h>
 static char int_to_hex_digit(uint8_t x) {
-	return pgm_read_byte_near(PSTR(
-			"0123456789ABCDEF") + (x & 0xF));
+	return pgm_read_byte_near(
+		PSTR("0123456789ABCDEF") + (x & 0xF)
+	);
 }
 #else
 static char int_to_hex_digit(uint8_t x) {
-	return "0123456789ABCDEF"[x &
-	    0xF];
+	return "0123456789ABCDEF"[x & 0xF];
 }
 #endif
 
@@ -93,13 +93,15 @@ url_encode_cstr(
 			*dest++ = src_char;
 			ret++;
 			max_size--;
+#if URL_ENCODE_SPACES_AS_PLUSES
 		} else if(src_char == ' ') {
 			*dest++ = '+';  // Stupid legacy space encoding.
 			ret++;
 			max_size--;
+#endif
 		} else {
 			if(max_size < 3) {
-				// Too small for the next character.
+				// Dest buffer too small for the next character.
 				ret++;
 				break;
 			}
@@ -202,9 +204,10 @@ url_decode_cstr(
 		if((src_char == '%')
 			&& src[0]
 			&& src[1]
+			&& !(src[0] == '0' && src[1] == '0')
 		) {
-			*dest++ = (hex_digit_to_int(src[0]) << 4) + hex_digit_to_int(
-				src[1]);
+			*dest++ = (hex_digit_to_int(src[0]) << 4)
+				+ hex_digit_to_int(src[1]);
 			src += 2;
 		} else if(src_char == '+') {
 			*dest++ = ' ';  // Stupid legacy space encoding.
@@ -227,6 +230,43 @@ bail:
 void
 url_decode_cstr_inplace(char *str) {
 	url_decode_cstr(str, str, -1);
+}
+
+size_t
+quoted_cstr(
+	char *dest,
+	const char* src,		// Must be zero-terminated.
+	size_t dest_max_size
+) {
+	char* ret = dest;
+
+	require(dest_max_size,bail);
+	dest_max_size--;		// For zero termination.
+
+	require(dest_max_size,bail);
+	*dest++ = '"';
+	dest_max_size--;
+
+	require(dest_max_size,bail);
+
+	while(dest_max_size-1) {
+		char src_char = *src++;
+
+		if(!src_char)
+			break;
+
+		if((src_char == '/') && src[0] == '"')
+			src_char = *src++;
+		*dest++ = src_char;
+		dest_max_size--;
+	}
+
+	*dest++ = '"';
+	dest_max_size--;
+bail:
+	*dest = 0;
+
+	return dest-ret;
 }
 
 size_t
@@ -337,22 +377,18 @@ bail:
 
 int
 url_parse(
-	char*	uri,
-	char**	protocol,
-	char**	username,	// Not yet supported: will be skipped if present.
-	char**	password,	// Not yet supported: will be skipped if present.
-	char**	host,
-	char**	port,
-	char**	path,
-	char**	query
+	char* uri,
+	struct url_components_s* components
 ) {
 	int bytes_parsed = 0;
 	char tmp;
 
-	require_string(uri, bail, "NULL uri parameter");
+	if(!url_is_absolute(uri))
+		goto skip_absolute_url_stuff;
 
-	if(protocol)
-		*protocol = uri;
+	check_string(uri, "NULL URI parameter");
+
+	components->protocol = uri;
 
 	while(*uri != ':') {
 		require_string(*uri, bail, "unexpected end of string");
@@ -382,6 +418,7 @@ url_parse(
 				|| (tmp == '[')
 				|| (tmp == ']')
 				|| (tmp == ':')
+				|| (tmp == '%')		// Necessary for scoped addresses
 				|| (tmp == '@')
 			)
 		) {
@@ -397,25 +434,41 @@ url_parse(
 		}
 
 		for(;
-		        (addr_end >= addr_begin) && (*addr_end != '@') &&
-		        (*addr_end != '[');
-		    addr_end--) {
+			(addr_end >= addr_begin) && (*addr_end != '@') &&
+			(*addr_end != '[');
+		    addr_end--
+		) {
 			if(*addr_end == ']') {
 				*addr_end = 0;
 				got_port = true;
 			} else if(!got_port && (*addr_end == ':')) {
-				if(port)
-					*port = addr_end + 1;
+				components->port = addr_end + 1;
 				*addr_end = 0;
 				got_port = true;
 			}
 		}
-		if(host)
-			*host = addr_end + 1;
+		components->host = addr_end + 1;
+
+		if(*addr_end=='@') {
+			*addr_end = 0;
+			for(;
+				(addr_end >= addr_begin) && (*addr_end != '/');
+				addr_end--
+			) {
+				if(*addr_end==':') {
+					*addr_end = 0;
+					components->password = addr_end + 1;
+				}
+			}
+			if(*addr_end=='/') {
+				components->username = addr_end + 1;
+			}
+		}
 	}
 
-	if(path)
-		*path = uri;
+skip_absolute_url_stuff:
+
+	components->path = uri;
 
 	// Move to the end of the path.
 	while( ((tmp=*uri) != '#')
@@ -439,8 +492,7 @@ url_parse(
 		*uri++ = 0;
 		bytes_parsed++;
 
-		if(query)
-			*query = uri;
+		components->query = uri;
 
 		// Move to the end of the query.
 		while( ((tmp=*uri) != '#')
@@ -477,8 +529,8 @@ url_is_absolute(const char* uri) {
 
 	require(uri, bail);
 
-	while(*uri && isalpha(*uri) && (*uri != ':')) {
-		require(*uri, bail);
+	while(*uri && (isalpha(*uri) || *uri=='-') && (*uri != ':')) {
+		require(0 != *uri, bail);
 		uri++;
 		bytes_parsed++;
 	}
@@ -495,7 +547,8 @@ url_is_root(const char* url) {
 	bool ret = false;
 
 	require(url, bail);
-	require(isalpha(url[0]),bail);
+
+	if(!isalpha(url[0])) goto bail;
 
 	if(url_is_absolute(url)) {
 		while(*url && isalpha(*url) && (*url != ':')) {

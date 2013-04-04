@@ -206,15 +206,13 @@ freq_parse_uri(
 	freq_t* freq_tx
 ) {
 	int ret = 0;
-	int status = 0;
-	char *uri=NULL;
-	char *protocol=NULL;
-	char *path=NULL;
-	char *query=NULL;
-	char multchar = 'k';
-	uint32_t freq;
+	int status;
+	struct url_components_s components = { };
+	char* uri;
 	char* key;
 	char* value;
+	uint32_t freq;
+	char multchar = 'k';
 
 	require_action_string(original_uri,bail,
 		ret=FREQ_STATUS_BAD_ARGUMENT,"uri is null");
@@ -229,27 +227,27 @@ freq_parse_uri(
 
 	status = url_parse(
 		uri,
-		&protocol,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		&path,
-		&query
+		&components
 	);
 
 	require_action_string(status>0,bail,
 		ret=FREQ_STATUS_BAD_FORMAT,"url parse failure");
 
+	require_action_string(status>0,bail,
+		ret=FREQ_STATUS_BAD_FORMAT,"url parse failure");
+
 	// Make sure this is a freq or x-freq URI.
-	if(0!=strcmp(protocol,"x-freq")
-	 && 0!=strcmp(protocol,"freq")) {
+	if(!components.protocol || (
+			0 != strcmp(components.protocol, "x-freq")
+			&& 0 != strcmp(components.protocol, "freq")
+		)
+	) {
 		ret = FREQ_STATUS_BAD_PROTOCOL;
 		goto bail;
 	}
 
 	// Parse the frequency.
-	freq = strtofreq(path,&path,&multchar);
+	freq = strtofreq(components.path,&components.path,&multchar);
 
 	require_action_string(freq!=0,bail,
 		ret=FREQ_STATUS_BAD_FORMAT,"bad frequency");
@@ -261,29 +259,29 @@ freq_parse_uri(
 		freq_tx->f = freq;
 
 	// Parse the split transmit frequency, if present.
-	if(freq_tx) switch(path[0]) {
+	if(freq_tx) switch(components.path[0]) {
 		case '+':
-			path++;
-			freq_tx->f += strtofreq(path,&path,&multchar);
+			components.path++;
+			freq_tx->f += strtofreq(components.path,&components.path,&multchar);
 			break;
 		case '-':
-			path++;
-			freq_tx->f -= strtofreq(path,&path,&multchar);
+			components.path++;
+			freq_tx->f -= strtofreq(components.path,&components.path,&multchar);
 			break;
 		case '/':
-			path++;
-			freq_tx->f = strtofreq(path,&path,&multchar);
+			components.path++;
+			freq_tx->f = strtofreq(components.path,&components.path,&multchar);
 			break;
 		default:
 			break;
 	}
 
 	// If we don't have a query component, skip to the end.
-	if(!query)
+	if(!components.query)
 		goto bail;
 
 	// Parse the query parameters.
-	while(url_form_next_value(&query,&key,&value,false)) {
+	while(url_form_next_value(&components.query,&key,&value,false)) {
 		char* value_rx = NULL;
 		char* value_tx = NULL;
 
